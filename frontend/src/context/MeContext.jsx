@@ -9,10 +9,12 @@ export function MeProvider({ children }) {
   const api = useApi();
   const [me, setMe] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!isSignedIn) {
       setMe(null);
+      setError(false);
       setLoading(false);
       return;
     }
@@ -20,8 +22,10 @@ export function MeProvider({ children }) {
     try {
       const { data } = await api.get("/me");
       setMe(data);
+      setError(false);
     } catch {
       setMe(null);
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -34,7 +38,7 @@ export function MeProvider({ children }) {
   }, [isLoaded, refresh]);
 
   return (
-    <MeContext.Provider value={{ me, role: me?.role, loading: !isLoaded || loading, refresh }}>
+    <MeContext.Provider value={{ me, role: me?.role, loading: !isLoaded || loading, error, refresh }}>
       {children}
     </MeContext.Provider>
   );

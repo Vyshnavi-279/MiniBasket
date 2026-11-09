@@ -92,7 +92,14 @@ export default function Checkout() {
             setPaying(false);
           }
         },
-        modal: { ondismiss: () => { setPaying(false); toast("Payment cancelled. Your basket is saved."); } },
+        modal: {
+          ondismiss: () => {
+            setPaying(false);
+            api.post(`/orders/${data.order_id}/abandon`).catch(() => {});
+            toast("Payment cancelled. Your basket is saved.");
+          },
+        },
+        timeout: data.timeout_seconds,
       });
       rzp.on("payment.failed", (r) => toast.error(r?.error?.description || "Payment failed. Please try again."));
       rzp.open();

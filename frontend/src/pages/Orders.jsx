@@ -3,19 +3,22 @@ import { Link } from "react-router-dom";
 import { ChevronRight, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/orders/OrderStatus";
-import { PageLoader } from "@/components/RoleGate";
+import { PageLoader, ErrorState } from "@/components/RoleGate";
 import { useApi } from "@/lib/api";
 import { fmtDate, inr } from "@/lib/format";
 
 export default function Orders() {
   const api = useApi();
   const [orders, setOrders] = useState(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    api.get("/orders").then((r) => setOrders(r.data)).catch(() => setOrders([]));
-  }, [api]);
+    setOrders(null);
+    api.get("/orders").then((r) => setOrders(r.data)).catch(() => setOrders("error"));
+  }, [api, reload]);
 
   if (!orders) return <PageLoader />;
+  if (orders === "error") return <ErrorState onRetry={() => setReload((n) => n + 1)} text="We couldn't load your orders." />;
 
   return (
     <div data-testid="orders-page" className="max-w-3xl mx-auto px-4 py-8">

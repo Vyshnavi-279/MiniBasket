@@ -1,11 +1,13 @@
 import hashlib
 import hmac
 import os
-from typing import Literal
+from datetime import datetime, timedelta, timezone
+from typing import Literal, Optional
 
 import razorpay
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from pymongo import ReturnDocument
 from starlette.concurrency import run_in_threadpool
 
 from core import DELIVERY_FEE, ENV, current_member, db, logger, new_id, now_iso, require_role
@@ -13,6 +15,8 @@ from core import DELIVERY_FEE, ENV, current_member, db, logger, new_id, now_iso,
 router = APIRouter(prefix="/api")
 
 PHONE = r"^[6-9]\d{9}$"
+RESERVE_MINUTES = 15
+UNPAID = ["pending_payment", "payment_expired", "payment_abandoned"]
 
 
 class CartLine(BaseModel):
@@ -40,12 +44,95 @@ class VerifyIn(BaseModel):
     razorpay_signature: str = Field(min_length=1, max_length=200)
 
 
+def _keys() -> tuple[str, str]:
+    return os.environ.get("RAZORPAY_KEY_ID", ""), os.environ.get("RAZORPAY_KEY_SECRET", "")
+
+
 def _razorpay_keys() -> tuple[str, str]:
-    key_id, secret = os.environ.get("RAZORPAY_KEY_ID", ""), os.environ.get("RAZORPAY_KEY_SECRET", "")
+    key_id, secret = _keys()
     if not key_id or not secret:
         raise HTTPException(status_code=503, detail="Online payments are not configured yet. Please try again later.")
     return key_id, secret
 
+
+# ---------- Stock reservation ----------
+
+async def _reserve(items: list[dict]) -> Optional[dict]:
+    """Atomically hold stock for every item; returns the first item that could not be held (after rolling back)."""
+    held = []
+    for it in items:
+        res = await db.products.update_one({"id": it["product_id"], "is_active": True, "stock": {"$gte": it["qty"]}},
+                                           {"$inc": {"stock": -it["qty"]}})
+        if res.modified_count == 0:
+            await _release(held)
+            return it
+        held.append(it)
+    return None
+
+
+async def _release(items: list[dict]) -> None:
+    for it in items:
+        await db.products.update_one({"id": it["product_id"]}, {"$inc": {"stock": it["qty"]}})
+
+
+async def _drop_reservation(order_id: str, new_status: str) -> bool:
+    """Claim an unpaid order's held stock exactly once and give it back."""
+    order = await db.orders.find_one_and_update(
+        {"id": order_id, "status": "pending_payment", "stock_reserved": True, "payment.status": {"$ne": "paid"}},
+        {"$set": {"status": new_status, "stock_reserved": False, "updated_at": now_iso()}},
+        projection={"_id": 0, "items": 1})
+    if order:
+        await _release(order["items"])
+    return bool(order)
+
+
+async def mark_paid(order: dict, payment_id: str) -> None:
+    ts = now_iso()
+    prev = await db.orders.find_one_and_update(
+        {"id": order["id"], "payment.status": {"$ne": "paid"}},
+        {"$set": {"status": "placed", "stock_reserved": True, "payment.status": "paid", "payment.razorpay_payment_id": payment_id,
+                  "payment.paid_at": ts, "updated_at": ts},
+         "$push": {"timeline": {"status": "placed", "at": ts, "by": "customer"}}},
+        projection={"_id": 0}, return_document=ReturnDocument.BEFORE)
+    if prev is None:
+        return
+    if not prev.get("stock_reserved"):
+        failed = await _reserve(prev["items"])
+        if failed:
+            await db.orders.update_one({"id": order["id"]}, {
+                "$set": {"status": "cancelled", "stock_reserved": False, "refund_due": True,
+                         "cancel_reason": f"{failed['name']} went out of stock before the payment completed. A full refund is due."},
+                "$push": {"timeline": {"status": "cancelled", "at": now_iso(), "by": "system"}}})
+            return
+    for it in prev["items"]:
+        await db.products.update_one({"id": it["product_id"]}, {"$inc": {"sold": it["qty"]}})
+
+
+async def reconcile(order: dict) -> bool:
+    """Ask Razorpay whether an unpaid order was actually captured (e.g. the browser closed before verify)."""
+    key_id, secret = _keys()
+    if not key_id or not secret or order["payment"]["status"] == "paid":
+        return False
+    try:
+        data = await run_in_threadpool(razorpay.Client(auth=(key_id, secret)).order.payments, order["payment"]["razorpay_order_id"])
+    except Exception:
+        logger.warning("Razorpay reconcile failed for %s", order["id"])
+        return False
+    captured = next((p for p in data.get("items", []) if p.get("status") == "captured"), None)
+    if captured:
+        await mark_paid(order, captured["id"])
+    return bool(captured)
+
+
+async def release_expired_reservations() -> None:
+    expired = await db.orders.find({"status": "pending_payment", "stock_reserved": True, "reserved_until": {"$lt": now_iso()}},
+                                   {"_id": 0}).limit(20).to_list(20)
+    for order in expired:
+        if not await reconcile(order):
+            await _drop_reservation(order["id"], "payment_expired")
+
+
+# ---------- Checkout ----------
 
 async def _price_cart(lines: list[CartLine]) -> list[dict]:
     qty_by_id: dict[str, int] = {}
@@ -60,8 +147,6 @@ async def _price_cart(lines: list[CartLine]) -> list[dict]:
             raise HTTPException(status_code=400, detail="Some items in your cart are no longer available. Please review your cart.")
         if qty > 20:
             raise HTTPException(status_code=400, detail=f"You can order up to 20 of {p['name']}.")
-        if p["stock"] < qty:
-            raise HTTPException(status_code=400, detail=f"Only {p['stock']} left of {p['name']}. Please reduce the quantity.")
         items.append({"product_id": pid, "name": p["name"], "unit": p["unit"], "image": p["image"],
                       "price": p["price"], "qty": qty, "line_total": p["price"] * qty})
     return items
@@ -70,72 +155,86 @@ async def _price_cart(lines: list[CartLine]) -> list[dict]:
 @router.post("/orders/checkout")
 async def checkout(body: CheckoutIn, member: dict = Depends(current_member)):
     key_id, secret = _razorpay_keys()
+    await release_expired_reservations()
     items = await _price_cart(body.items)
+    failed = await _reserve(items)
+    if failed:
+        p = await db.products.find_one({"id": failed["product_id"]}, {"_id": 0, "stock": 1})
+        raise HTTPException(status_code=400, detail=f"Only {(p or {}).get('stock', 0)} left of {failed['name']}. Please reduce the quantity.")
     subtotal = sum(i["line_total"] for i in items)
     total = subtotal + DELIVERY_FEE
-    order_id, number = new_id(), "MB" + new_id()[:8].upper()
-    rz = razorpay.Client(auth=(key_id, secret))
+    order_id, number = new_id(), "MB" + new_id()[:10].upper()
     try:
-        rz_order = await run_in_threadpool(rz.order.create, {
+        rz_order = await run_in_threadpool(razorpay.Client(auth=(key_id, secret)).order.create, {
             "amount": total * 100, "currency": "INR", "receipt": number, "payment_capture": 1,
             "notes": {"order_number": number},
         })
     except Exception:
         logger.exception("Razorpay order create failed")
+        await _release(items)
         raise HTTPException(status_code=502, detail="Could not start the payment. Please try again.")
     ts = now_iso()
     await db.orders.insert_one({
         "id": order_id, "order_number": number, "user_id": member["user_id"], "env": ENV,
         "customer": {"name": body.address.full_name, "email": member.get("email") or ""},
         "items": items, "subtotal": subtotal, "delivery_fee": DELIVERY_FEE, "total": total,
-        "address": body.address.model_dump(), "status": "pending_payment",
+        "address": body.address.model_dump(), "status": "pending_payment", "stock_reserved": True,
+        "reserved_until": (datetime.now(timezone.utc) + timedelta(minutes=RESERVE_MINUTES)).isoformat(),
         "payment": {"method": "razorpay", "status": "pending", "razorpay_order_id": rz_order["id"]},
         "delivery_partner": None, "timeline": [], "created_at": ts, "updated_at": ts,
     })
     await db.users.update_one({"user_id": member["user_id"]}, {"$set": {"default_address": body.address.model_dump()}})
     return {"order_id": order_id, "order_number": number, "razorpay_order_id": rz_order["id"],
-            "amount": rz_order["amount"], "currency": "INR", "key_id": key_id}
+            "amount": rz_order["amount"], "currency": "INR", "key_id": key_id, "timeout_seconds": RESERVE_MINUTES * 60}
+
+
+async def _owned(order_id: str, member: dict) -> dict:
+    order = await db.orders.find_one({"id": order_id, "user_id": member["user_id"]}, {"_id": 0})
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return order
 
 
 @router.post("/orders/{order_id}/verify")
 async def verify_payment(order_id: str, body: VerifyIn, member: dict = Depends(current_member)):
     _, secret = _razorpay_keys()
-    order = await db.orders.find_one({"id": order_id, "user_id": member["user_id"]}, {"_id": 0})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
-    if order["payment"]["status"] == "paid":
-        return {"ok": True, "status": order["status"]}
-    if body.razorpay_order_id != order["payment"]["razorpay_order_id"]:
-        raise HTTPException(status_code=400, detail="This payment does not belong to this order.")
-    expected = hmac.new(secret.encode(), f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(),
-                        hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(expected, body.razorpay_signature):
-        await db.orders.update_one({"id": order_id}, {"$set": {"payment.status": "failed", "updated_at": now_iso()}})
-        raise HTTPException(status_code=400, detail="Payment verification failed. If money was deducted it will be refunded by Razorpay.")
-    ts = now_iso()
-    res = await db.orders.update_one(
-        {"id": order_id, "payment.status": {"$ne": "paid"}},
-        {"$set": {"status": "placed", "payment.status": "paid", "payment.razorpay_payment_id": body.razorpay_payment_id,
-                  "payment.paid_at": ts, "updated_at": ts},
-         "$push": {"timeline": {"status": "placed", "at": ts, "by": "customer"}}})
-    if res.modified_count:
-        for item in order["items"]:
-            await db.products.update_one({"id": item["product_id"]}, {"$inc": {"stock": -item["qty"], "sold": item["qty"]}})
-        await db.products.update_many({"stock": {"$lt": 0}}, {"$set": {"stock": 0}})
-    return {"ok": True, "status": "placed"}
+    order = await _owned(order_id, member)
+    if order["payment"]["status"] != "paid":
+        if body.razorpay_order_id != order["payment"]["razorpay_order_id"]:
+            raise HTTPException(status_code=400, detail="This payment does not belong to this order.")
+        expected = hmac.new(secret.encode(), f"{body.razorpay_order_id}|{body.razorpay_payment_id}".encode(),
+                            hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, body.razorpay_signature):
+            raise HTTPException(status_code=400, detail="Payment verification failed. If money was deducted, Razorpay will refund it.")
+        await mark_paid(order, body.razorpay_payment_id)
+    fresh = await db.orders.find_one({"id": order_id}, {"_id": 0, "status": 1})
+    return {"ok": True, "status": fresh["status"]}
+
+
+@router.post("/orders/{order_id}/abandon")
+async def abandon_payment(order_id: str, member: dict = Depends(current_member)):
+    order = await _owned(order_id, member)
+    if order["status"] == "pending_payment" and not await reconcile(order):
+        await _drop_reservation(order_id, "payment_abandoned")
+    return {"ok": True}
 
 
 @router.get("/orders")
 async def my_orders(member: dict = Depends(current_member)):
+    since = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+    unpaid = await db.orders.find({"user_id": member["user_id"], "status": {"$in": UNPAID}, "payment.status": {"$ne": "paid"},
+                                   "created_at": {"$gte": since}}, {"_id": 0}).sort("created_at", -1).limit(3).to_list(3)
+    for order in unpaid:
+        await reconcile(order)
     return await db.orders.find({"user_id": member["user_id"], "payment.status": "paid"}, {"_id": 0}) \
         .sort("created_at", -1).limit(100).to_list(100)
 
 
 @router.get("/orders/{order_id}")
 async def my_order(order_id: str, member: dict = Depends(current_member)):
-    order = await db.orders.find_one({"id": order_id, "user_id": member["user_id"]}, {"_id": 0})
-    if not order:
-        raise HTTPException(status_code=404, detail="Order not found")
+    order = await _owned(order_id, member)
+    if order["status"] in UNPAID and await reconcile(order):
+        order = await _owned(order_id, member)
     return order
 
 
@@ -186,6 +285,10 @@ async def rider_update_status(order_id: str, body: RiderStatusIn, rider: dict = 
     if RIDER_NEXT.get(order["status"]) != body.status:
         raise HTTPException(status_code=409, detail="This step is not available for the order right now.")
     ts = now_iso()
-    await db.orders.update_one({"id": order_id}, {"$set": {"status": body.status, "updated_at": ts},
-                                                  "$push": {"timeline": {"status": body.status, "at": ts, "by": "delivery"}}})
+    res = await db.orders.update_one(
+        {"id": order_id, "status": order["status"], "delivery_partner.user_id": rider["user_id"]},
+        {"$set": {"status": body.status, "updated_at": ts},
+         "$push": {"timeline": {"status": body.status, "at": ts, "by": "delivery"}}})
+    if res.modified_count == 0:
+        raise HTTPException(status_code=409, detail="This order was just updated by someone else. Please refresh.")
     return await db.orders.find_one({"id": order_id}, {"_id": 0})

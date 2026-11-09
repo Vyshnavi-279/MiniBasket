@@ -41,11 +41,16 @@ export const ChatBody = () => {
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [products, setProducts] = useState({});
+  const [ready, setReady] = useState(false);
   const requested = useRef(new Set());
   const endRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
-    api.get("/ai/chat/history").then((r) => setMessages(r.data)).catch(() => {});
+    api.get("/ai/chat/history").then((r) => setMessages(r.data)).catch(() => {}).finally(() => {
+      setReady(true);
+      inputRef.current?.focus();
+    });
   }, [api]);
 
   useEffect(() => {
@@ -62,20 +67,28 @@ export const ChatBody = () => {
       .catch(() => {});
   }, [messages, busy]);
 
-  const patchLast = (fn) => setMessages((m) => { const c = [...m]; c[c.length - 1] = fn(c[c.length - 1]); return c; });
+  const patchLast = (fn) => setMessages((m) => {
+    if (!m.length || m[m.length - 1].role !== "assistant") return m;
+    const c = [...m];
+    c[c.length - 1] = fn(c[c.length - 1]);
+    return c;
+  });
 
   const send = async (text) => {
     const msg = text.trim();
-    if (!msg || busy) return;
+    if (!msg || busy || !ready) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", content: msg }, { role: "assistant", content: "" }]);
     setBusy(true);
+    let finished = false;
     try {
       const token = await getToken();
       await streamSSE("/ai/chat", { message: msg }, token, (ev) => {
         if (ev.delta) patchLast((l) => ({ ...l, content: l.content + ev.delta }));
-        if (ev.error) patchLast(() => ({ role: "assistant", content: ev.error, error: true }));
+        if (ev.error) { finished = true; patchLast(() => ({ role: "assistant", content: ev.error, error: true })); }
+        if (ev.done) finished = true;
       });
+      if (!finished) patchLast((l) => ({ ...l, content: `${l.content}\n\n(The reply was cut off. Please ask again.)`, error: !l.content }));
     } catch (e) {
       patchLast(() => ({ role: "assistant", content: e.message, error: true }));
     } finally {
@@ -91,7 +104,8 @@ export const ChatBody = () => {
   return (
     <>
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" data-testid="ai-messages">
-        {messages.length === 0 && (
+        {!ready && <p className="text-sm text-muted-foreground" data-testid="ai-history-loading">Loading your chat…</p>}
+        {ready && messages.length === 0 && (
           <div className="space-y-2" data-testid="ai-suggestions">
             <p className="text-sm text-muted-foreground">Hi! I can find products, suggest recipe ingredients and answer questions about delivery and payments.</p>
             {SUGGESTIONS.map((s, i) => (
@@ -104,12 +118,12 @@ export const ChatBody = () => {
         <div ref={endRef} />
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="border-t p-3 flex items-center gap-2">
-        {messages.length > 0 && (
+        {messages.length > 0 && !busy && (
           <button type="button" onClick={clear} data-testid="ai-clear-button" aria-label="Clear chat" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><Trash2 className="h-4 w-4" /></button>
         )}
-        <input data-testid="ai-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000}
+        <input ref={inputRef} data-testid="ai-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} disabled={!ready}
           placeholder="Ask about products, recipes, delivery…" className="flex-1 h-10 rounded-lg border border-input px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-        <button type="submit" data-testid="ai-chat-send-button" disabled={busy || !input.trim()} aria-label="Send"
+        <button type="submit" data-testid="ai-chat-send-button" disabled={busy || !ready || !input.trim()} aria-label="Send"
           className="h-10 w-10 rounded-lg bg-primary text-white grid place-items-center disabled:opacity-50">
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
         </button>

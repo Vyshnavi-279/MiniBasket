@@ -4,7 +4,7 @@ import { Bike, CheckCircle2, Loader2, MapPin, Phone, RefreshCw } from "lucide-re
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/orders/OrderStatus";
-import { PageLoader } from "@/components/RoleGate";
+import { PageLoader, ErrorState } from "@/components/RoleGate";
 import { errMsg, useApi } from "@/lib/api";
 import { fmtDate, inr } from "@/lib/format";
 
@@ -51,11 +51,13 @@ export default function DeliveryDashboard() {
   const [tab, setTab] = useState("active");
 
   const load = useCallback(() => {
-    api.get("/delivery/orders").then((r) => setOrders(r.data)).catch(() => setOrders([]));
+    api.get("/delivery/orders").then((r) => setOrders(r.data)).catch(() => setOrders((prev) => (Array.isArray(prev) ? prev : "error")));
   }, [api]);
 
   useEffect(() => {
     load();
+    const timer = setInterval(load, 30000);
+    return () => clearInterval(timer);
   }, [load]);
 
   const update = async (id, status) => {
@@ -69,10 +71,11 @@ export default function DeliveryDashboard() {
   };
 
   if (!orders) return <PageLoader />;
+  if (orders === "error") return <ErrorState onRetry={() => { setOrders(null); load(); }} text="We couldn't load your deliveries." />;
   const active = orders.filter((o) => ["assigned", "out_for_delivery"].includes(o.status));
   const done = orders.filter((o) => ["delivered", "cancelled"].includes(o.status));
   const list = tab === "active" ? active : done;
-  const today = new Date().toISOString().slice(0, 10);
+  const isToday = (iso) => iso && new Date(iso).toDateString() === new Date().toDateString();
 
   return (
     <div data-testid="delivery-dashboard" className="max-w-3xl mx-auto px-4 py-8">
@@ -81,7 +84,7 @@ export default function DeliveryDashboard() {
         <Button variant="outline" size="sm" onClick={load} data-testid="delivery-refresh-button"><RefreshCw className="h-4 w-4 mr-1.5" /> Refresh</Button>
       </div>
       <div className="mt-5 grid grid-cols-3 border rounded-xl bg-white divide-x">
-        {[["To deliver", active.length, "delivery-stat-active"], ["Delivered today", done.filter((o) => o.status === "delivered" && o.updated_at?.startsWith(today)).length, "delivery-stat-today"], ["All delivered", done.filter((o) => o.status === "delivered").length, "delivery-stat-total"]].map(([l, v, t]) => (
+        {[["To deliver", active.length, "delivery-stat-active"], ["Delivered today", done.filter((o) => o.status === "delivered" && isToday(o.updated_at)).length, "delivery-stat-today"], ["All delivered", done.filter((o) => o.status === "delivered").length, "delivery-stat-total"]].map(([l, v, t]) => (
           <div key={l} className="p-4"><p className="text-xs text-muted-foreground">{l}</p><p className="text-2xl font-semibold tnum" data-testid={t}>{v}</p></div>
         ))}
       </div>

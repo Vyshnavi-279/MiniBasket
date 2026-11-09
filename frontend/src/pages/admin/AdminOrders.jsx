@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import { STATUS, fmtDate, inr } from "@/lib/format";
 const FILTERS = ["all", "placed", "packed", "assigned", "out_for_delivery", "delivered", "cancelled", "pending_payment"];
 
 const OrderActions = ({ order, riders, onAction }) => {
-  const canAssign = ["placed", "packed", "assigned"].includes(order.status);
+  const canAssign = ["packed", "assigned"].includes(order.status);
   return (
     <div className="flex items-center gap-2 justify-end">
       {canAssign && (
@@ -45,6 +45,7 @@ const OrderDialog = ({ order, onClose }) => (
             <AddressBlock a={order.address} />
             <p className="text-xs text-muted-foreground">Customer email: {order.customer?.email || "—"} · Razorpay payment: {order.payment?.razorpay_payment_id || "—"}</p>
             {order.delivery_partner && <p className="text-sm">Rider: <span className="font-medium">{order.delivery_partner.name}</span> {order.delivery_partner.phone}</p>}
+            {order.refund_due && <p className="text-sm text-[#b71c1c]" data-testid="admin-order-refund-due">Refund due — issue it from your Razorpay dashboard. {order.cancel_reason || ""}</p>}
             <OrderItems order={order} />
             <OrderBill order={order} />
           </div>
@@ -61,14 +62,14 @@ export default function AdminOrders() {
   const [orders, setOrders] = useState(null);
   const [riders, setRiders] = useState([]);
   const [view, setView] = useState(null);
-
-  const load = useCallback(() => {
-    api.get("/admin/orders", { params: { status, q: q || undefined } }).then((r) => setOrders(r.data)).catch(() => setOrders([]));
-  }, [api, status, q]);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    let active = true;
+    api.get("/admin/orders", { params: { status, q: q || undefined } })
+      .then((r) => active && setOrders(r.data)).catch(() => active && setOrders("error"));
+    return () => { active = false; };
+  }, [api, status, q, reload]);
 
   useEffect(() => {
     api.get("/admin/riders").then((r) => setRiders(r.data)).catch(() => {});
@@ -84,12 +85,13 @@ export default function AdminOrders() {
       toast.success(action === "assign" ? "Rider assigned" : `Order ${STATUS[action].label.toLowerCase()}`);
     } catch (e) {
       toast.error(errMsg(e));
+      if (e?.response?.status === 409) setReload((n) => n + 1);
     }
   };
 
   return (
     <div data-testid="admin-orders">
-      <AdminHeader title="Orders" subtitle="Prepaid orders only. Assign a rider once packed." />
+      <AdminHeader title="Orders" subtitle="Prepaid orders only. Mark packed, then assign a rider." />
       <div className="flex flex-wrap gap-2 mb-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -108,6 +110,7 @@ export default function AdminOrders() {
           </TableHeader>
           <TableBody>
             {orders === null ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10">Loading…</TableCell></TableRow> :
+              orders === "error" ? <TableRow><TableCell colSpan={6} className="text-center py-10" data-testid="admin-orders-error">Couldn't load orders. <button className="text-primary underline" onClick={() => { setOrders(null); setReload((n) => n + 1); }}>Try again</button></TableCell></TableRow> :
               orders.length === 0 ? <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-10" data-testid="admin-orders-empty">No orders here yet. Paid customer orders will appear here.</TableCell></TableRow> :
               orders.map((o) => (
                 <TableRow key={o.id} data-testid={`admin-order-row-${o.order_number}`}>

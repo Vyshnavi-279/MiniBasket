@@ -2,10 +2,14 @@ import { Link } from "react-router-dom";
 import { AddToCart } from "@/components/store/AddToCart";
 import { inr } from "@/lib/format";
 
+export const imgFallback = (e) => {
+  if (!e.currentTarget.src.endsWith("/placeholder.svg")) e.currentTarget.src = "/placeholder.svg";
+};
+
 export const ProductCard = ({ product }) => (
   <div data-testid={`product-card-${product.id}`} className="group bg-white border rounded-lg p-3 flex flex-col hover:border-primary/40 transition-colors">
     <Link to={`/product/${product.id}`} className="relative block aspect-square rounded-md overflow-hidden bg-muted">
-      <img src={product.image} alt={product.name} loading="lazy"
+      <img src={product.image} alt={product.name} loading="lazy" onError={imgFallback}
         className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
       {product.discount_pct > 0 && (
         <span className="absolute top-2 left-2 rounded-md bg-[#c62828] text-white text-[11px] font-semibold px-1.5 py-0.5">{product.discount_pct}% OFF</span>

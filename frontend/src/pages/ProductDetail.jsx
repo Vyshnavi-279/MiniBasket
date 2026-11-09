@@ -7,6 +7,7 @@ import { ProductRail } from "@/components/store/ProductRail";
 import { PageLoader } from "@/components/RoleGate";
 import { publicApi } from "@/lib/api";
 import { inr } from "@/lib/format";
+import { imgFallback } from "@/components/store/ProductCard";
 
 export default function ProductDetail() {
   const { id } = useParams();
@@ -15,12 +16,17 @@ export default function ProductDetail() {
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
+    let active = true;
     setProduct(null);
+    setRelated(null);
     setMissing(false);
     publicApi.get(`/products/${id}`).then((r) => {
+      if (!active) return;
       setProduct(r.data);
-      return publicApi.get("/products", { params: { category: r.data.category, limit: 12 } });
-    }).then((r) => setRelated(r.data.filter((p) => p.id !== id))).catch(() => setMissing(true));
+      publicApi.get("/products", { params: { category: r.data.category, limit: 12 } })
+        .then((rr) => active && setRelated(rr.data.filter((p) => p.id !== id))).catch(() => {});
+    }).catch(() => active && setMissing(true));
+    return () => { active = false; };
   }, [id]);
 
   if (missing) {
@@ -37,7 +43,7 @@ export default function ProductDetail() {
         </nav>
         <div className="mt-4 grid md:grid-cols-2 gap-8">
           <div className="rounded-2xl overflow-hidden border bg-white aspect-square">
-            <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
+            <img src={product.image} alt={product.name} onError={imgFallback} className="h-full w-full object-cover" />
           </div>
           <div className="flex flex-col">
             <span className="self-start rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">{product.unit}</span>

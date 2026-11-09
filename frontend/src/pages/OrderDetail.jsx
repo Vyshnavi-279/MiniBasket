@@ -40,7 +40,13 @@ export default function OrderDetail() {
   const [missing, setMissing] = useState(false);
 
   useEffect(() => {
-    api.get(`/orders/${id}`).then((r) => setOrder(r.data)).catch(() => setMissing(true));
+    let active = true;
+    const load = () => api.get(`/orders/${id}`).then((r) => active && setOrder(r.data)).catch((e) => {
+      if (active && e?.response?.status === 404) setMissing(true);
+    });
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { active = false; clearInterval(timer); };
   }, [api, id]);
 
   if (missing) return <div data-testid="order-not-found" className="text-center py-24"><p className="font-medium">Order not found.</p><Link to="/orders" className="text-primary text-sm">Back to my orders</Link></div>;
@@ -53,7 +59,7 @@ export default function OrderDetail() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="order-detail-number">Order #{order.order_number}</h1>
-          <p className="text-sm text-muted-foreground">Placed {fmtDate(order.created_at)}</p>
+          <p className="text-sm text-muted-foreground">Placed {fmtDate(order.created_at)} · updates automatically</p>
         </div>
         <StatusBadge status={order.status} testid="order-detail-status" />
       </div>

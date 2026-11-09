@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { publicApi } from "@/lib/api";
 
 const CartContext = createContext(null);
 const KEY = "minibasket_cart_v1";
@@ -20,6 +21,18 @@ export function CartProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(items));
   }, [items]);
+
+  useEffect(() => {
+    const ids = load().map((i) => i.id).join(",");
+    if (!ids) return;
+    publicApi.get("/products", { params: { ids } }).then(({ data }) => {
+      const live = Object.fromEntries(data.map((p) => [p.id, p]));
+      setItems((prev) => prev.map((i) => {
+        const p = live[i.id];
+        return p ? { ...i, name: p.name, price: p.price, mrp: p.mrp, unit: p.unit, image: p.image, stock: p.stock } : { ...i, stock: 0 };
+      }));
+    }).catch(() => {});
+  }, []);
 
   const setQty = useCallback((product, qty) => {
     setItems((prev) => {

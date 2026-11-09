@@ -27,7 +27,7 @@ export default function AdminProducts() {
   }, [load]);
 
   const save = async (body) => {
-    if (dialog.product) await api.put(`/admin/products/${dialog.product.id}`, body);
+    if (dialog.product) await api.put(`/admin/products/${dialog.product.id}`, { ...body, expected_stock: dialog.product.stock });
     else await api.post("/admin/products", body);
     toast.success(dialog.product ? "Product updated" : "Product added");
     setDialog({ open: false, product: null });

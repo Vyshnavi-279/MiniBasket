@@ -23,7 +23,10 @@ def _sse(obj: dict) -> str:
 
 
 def _new_chat(session_id: str, system: str, history: list[dict]) -> LlmChat:
-    return LlmChat(api_key=os.environ["EMERGENT_LLM_KEY"], session_id=session_id, system_message=system,
+    key = os.environ.get("EMERGENT_LLM_KEY", "")
+    if not key:
+        raise HTTPException(status_code=503, detail="The AI assistant is not configured yet.")
+    return LlmChat(api_key=key, session_id=session_id, system_message=system,
                    initial_messages=[{"role": "system", "content": system}, *history]).with_model(PROVIDER, MODEL)
 
 
@@ -40,8 +43,12 @@ async def _stream(chat: LlmChat, text: str, on_done=None):
         logger.exception("AI stream failed")
         yield _sse({"error": "The AI assistant is unavailable right now. Please try again in a moment."})
         return
+    text = "".join(parts).strip()
+    if not text:
+        yield _sse({"error": "The assistant didn't return an answer. Please try again."})
+        return
     if on_done:
-        await on_done("".join(parts))
+        await on_done(text)
     yield _sse({"done": True})
 
 

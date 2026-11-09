@@ -3,6 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { PackageSearch, X } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ProductCard, ProductGridSkeleton } from "@/components/store/ProductCard";
+import { ErrorState } from "@/components/RoleGate";
 import { publicApi } from "@/lib/api";
 
 const SORTS = [
@@ -31,16 +32,19 @@ export default function Shop() {
   const sort = params.get("sort") || "popular";
   const [categories, setCategories] = useState([]);
   const [products, setProducts] = useState(null);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     publicApi.get("/categories").then((r) => setCategories(r.data)).catch(() => {});
   }, []);
 
   useEffect(() => {
+    let active = true;
     setProducts(null);
     publicApi.get("/products", { params: { category: category || undefined, q: q || undefined, sort, limit: 200 } })
-      .then((r) => setProducts(r.data)).catch(() => setProducts([]));
-  }, [category, q, sort]);
+      .then((r) => active && setProducts(r.data)).catch(() => active && setProducts("error"));
+    return () => { active = false; };
+  }, [category, q, sort, reload]);
 
   const update = (key, value) => {
     const next = new URLSearchParams(params);
@@ -62,7 +66,7 @@ export default function Shop() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight" data-testid="shop-title">{title}</h1>
-            <p className="text-sm text-muted-foreground">{products ? `${products.length} items` : "Loading…"}</p>
+            <p className="text-sm text-muted-foreground">{Array.isArray(products) ? `${products.length} items` : products ? "" : "Loading…"}</p>
           </div>
           <div className="flex items-center gap-2">
             {q && (
@@ -77,7 +81,7 @@ export default function Shop() {
           </div>
         </div>
         <div className="mt-5">
-          {!products ? <ProductGridSkeleton /> : products.length === 0 ? (
+          {!products ? <ProductGridSkeleton /> : products === "error" ? <ErrorState onRetry={() => setReload((n) => n + 1)} text="We couldn't load products." /> : products.length === 0 ? (
             <div data-testid="shop-empty" className="text-center py-20 border rounded-xl bg-white">
               <PackageSearch className="h-10 w-10 mx-auto text-muted-foreground" />
               <p className="mt-3 font-medium">No items found</p>

@@ -49,6 +49,8 @@ INDEXES: dict[str, list[IndexModel]] = {
         IndexModel([("user_id", ASCENDING), ("created_at", DESCENDING)], name="user_created"),
         IndexModel([("delivery_partner.user_id", ASCENDING)], name="rider"),
         IndexModel([("status", ASCENDING), ("created_at", DESCENDING)], name="status_created"),
+        IndexModel([("order_number", ASCENDING)], name="order_number", unique=True),
+        IndexModel([("status", ASCENDING), ("reserved_until", ASCENDING)], name="reservations"),
     ],
     "delivery_applications": [
         IndexModel([("id", ASCENDING)], name="id", unique=True),
