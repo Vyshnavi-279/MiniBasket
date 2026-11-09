@@ -1,0 +1,204 @@
+{
+  "name": "BigBasket Mini",
+  "description": "Indian quick-commerce grocery storefront, rider dispatch and operations console; desktop shoppers, on-the-go delivery fleet, and operations admins",
+  "build_now": "Choose the smallest useful set of features from the user's scope that delivers the fastest aha moment through a complete core workflow, honoring explicit user priorities.",
+  "tokens": {
+    "colors": {
+      "primary": "#2e7d32",
+      "on-primary": "#ffffff",
+      "primary-container": "#e8f5e9",
+      "on-primary-container": "#1b5e20",
+      "background": "#f8f9fa",
+      "surface": "#ffffff",
+      "surface-container": "#f1f3f5",
+      "on-surface": "#212529",
+      "on-surface-variant": "#495057",
+      "outline": "#ced4da",
+      "outline-variant": "#e9ecef",
+      "error": "#c62828",
+      "on-error": "#ffffff",
+      "error-container": "#ffebee",
+      "on-error-container": "#b71c1c",
+      "success-container": "#e8f5e9",
+      "on-success-container": "#1b5e20",
+      "warning-container": "#fff8e1",
+      "on-warning-container": "#f57f17",
+      "info-container": "#e3f2fd",
+      "on-info-container": "#0d47a1",
+      "chart-1": "#2e7d32",
+      "chart-2": "#e65100",
+      "chart-3": "#0277bd",
+      "chart-4": "#6a1b9a"
+    },
+    "typography": {
+      "headline-lg": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "24px",
+        "fontWeight": 600,
+        "lineHeight": 1.25
+      },
+      "headline-md": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "18px",
+        "fontWeight": 600,
+        "lineHeight": 1.35
+      },
+      "body-md": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "14px",
+        "fontWeight": 400,
+        "lineHeight": 1.5
+      },
+      "label-lg": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "14px",
+        "fontWeight": 500,
+        "lineHeight": 1.4
+      },
+      "label-md": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "12px",
+        "fontWeight": 500,
+        "lineHeight": 1.4
+      },
+      "number-lg": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "28px",
+        "fontWeight": 600,
+        "lineHeight": 1.2,
+        "fontFeature": "tnum"
+      },
+      "body-lg": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "16px",
+        "fontWeight": 400,
+        "lineHeight": 1.6
+      },
+      "display-lg": {
+        "fontFamily": "Plus Jakarta Sans",
+        "fontSize": "40px",
+        "fontWeight": 600,
+        "lineHeight": 1.15
+      }
+    },
+    "rounded": {
+      "sm": "4px",
+      "md": "8px",
+      "lg": "12px",
+      "full": "9999px"
+    },
+    "spacing": {
+      "base": "4px",
+      "sm": "8px",
+      "md": "16px",
+      "lg": "24px",
+      "xl": "32px",
+      "control": "36px",
+      "row": "44px",
+      "content-max": "1280px"
+    },
+    "components": {
+      "button-primary": {
+        "backgroundColor": "{colors.primary}",
+        "textColor": "{colors.on-primary}",
+        "rounded": "{rounded.md}",
+        "height": "{spacing.control}"
+      },
+      "button-secondary": {
+        "backgroundColor": "{colors.surface}",
+        "textColor": "{colors.on-surface}",
+        "rounded": "{rounded.md}",
+        "height": "{spacing.control}"
+      },
+      "input": {
+        "backgroundColor": "{colors.surface}",
+        "textColor": "{colors.on-surface}",
+        "rounded": "{rounded.md}",
+        "height": "{spacing.control}"
+      },
+      "nav-item-active": {
+        "backgroundColor": "{colors.primary-container}",
+        "textColor": "{colors.on-primary-container}",
+        "rounded": "{rounded.md}"
+      },
+      "table-header": {
+        "backgroundColor": "{colors.surface-container}",
+        "textColor": "{colors.on-surface-variant}",
+        "height": "40px"
+      },
+      "table-row": {
+        "backgroundColor": "{colors.surface}",
+        "textColor": "{colors.on-surface}",
+        "height": "{spacing.row}"
+      },
+      "badge-status": {
+        "backgroundColor": "{colors.success-container}",
+        "textColor": "{colors.on-success-container}",
+        "rounded": "{rounded.full}"
+      }
+    }
+  },
+  "guidelines": {
+    "overview": [
+      "Category: food service & retail; sub-category: online grocery marketplace & delivery operations.",
+      "Users and usage: Indian household shoppers on desktop and mobile, delivery riders on mobile updating order milestones, and warehouse admins managing catalog and dispatch.",
+      "What suits it: clear Indian grocery taxonomy, bold vegetable-crate green primary, prominent prepaid Razorpay badges with flat ₹40 delivery fee callout, dense stock tables for admin, and large action buttons for riders.",
+      "Concept: Indian Kirana & Dark Store Harvest—clean shelf pricing, bold unit tags (1 kg, 500 g), and strict prepaid verification. Brand moment: Fresh harvest basket motif on sign-in and customer top navigation.",
+      "User choices: Clerk email/password auth, 100% prepaid Razorpay only (no cash on delivery), flat ₹40 delivery charge, AI shopping assistant chat & admin sales insights, rider sign-up with admin vetting.",
+      "This design is deliberate: its fonts, colours, flat surfaces, spacing and calm motion take precedence over generic visual defaults."
+    ],
+    "colors": [
+      "Brand hue: Harvest Forest Green (#2e7d32, shade 700) reflecting BigBasket freshness and trust, paired with neutral slate-gray (#f8f9fa background, #212529 text). Accent red (#c62828) for discounts and prepaid COD-restriction alerts.",
+      "The primary marks the main action, the selected item, links and focus; everything else stays neutral.",
+      "Statuses: Placed and Paid mapped to info; Packed and Assigned mapped to warning; Out for Delivery mapped to warning-container with dark text; Delivered mapped to success; Cancelled or Payment Failed mapped to error; Rider Pending Approval mapped to warning."
+    ],
+    "typography": [
+      "Plus Jakarta Sans from Google Fonts at 400, 500 and 600 for all work screens: clean geometric numerals and crisp legibility for Indian grocery packaging, weights and Indian Rupee amounts.",
+      "Labels 12px in on-surface-variant, the smallest size used. Amounts, counts, times and prices in tabular figures with ₹ symbol, upright and right-aligned in tables; order IDs left-aligned. Sentence case."
+    ],
+    "layout": [
+      "Navigation: Storefront features clean top bar with location pin, search bar, category dropdown, AI assistant trigger, cart drawer pill, and role-switcher/account menu. Admin and rider consoles feature a compact sidebar navigation.",
+      "Content up to 1280px with 24px gutters; each page header has its title on the left and its main button on the right; 4px spacing grid, 44px table rows, 16px card padding.",
+      "Breakpoints: desktop from 1024px; tablet 768 to 1023px; phone below 768px with sticky bottom cart summary bar, stacked order cards, 44px touch targets and no sideways scroll."
+    ],
+    "elevation_and_depth": [
+      "Flat: cards and tables have a 1px outline-variant border; one soft shadow only for menus, popovers and dialogs."
+    ],
+    "shapes": [
+      "8px corners on buttons, inputs and cards; 12px on dialogs; fully round for pills and avatars."
+    ],
+    "components": [
+      "States: hover tints the surface, focus shows a 2px primary ring, disabled is dimmed, and a working button shows a spinner.",
+      "Names (people, clients, products, records) show in full and wrap to two lines; IDs, codes, dates, phone numbers and amounts stay on one line in a column wide enough for them.",
+      "Tables: numbers and their header share one right edge; the header row spans the table and stays visible while scrolling; 1px row dividers; most urgent first.",
+      "Status pills fit their word on one line rather than a fixed width.",
+      "Inputs have a visible label above; search fields leave room for their icon; errors sit under the field and keep what was typed.",
+      "Filter bars hold search and up to two controls in one row; other filters sit in a Filters panel with removable chips.",
+      "Key numbers: one bordered row, label above the value, no icon circles or sparklines.",
+      "Charts: bars from zero, one series in the primary, up to six labels, none overlapping.",
+      "Icons from one line-icon set; on work screens, images only from the user, otherwise initials. Motion: 150ms colour and opacity changes on hover and focus; nothing moves on its own.",
+      "Signature: Grocery product tile with discount tag, unit pill (500 g, 1 kg), strikethrough MRP, and green Add/Qty stepper; Prepaid Razorpay checkout breakdown card highlighting Flat ₹40 Delivery Fee and No COD notice; Rider milestone status stepper."
+    ],
+    "dos_and_donts": [
+      "Do: one primary button per screen; clear prepaid disclaimer banner on cart and checkout; empty states that say what belongs there with 'Explore Fresh Produce'; 0 for zero, a dash for unknown; ₹ currency prefix for all amounts.",
+      "Don't: cash-on-delivery checkboxes or radio options, cream or beige pages, gradients, glass or blur, small uppercase labels above headings, 01/02/03 section numbers, monospace labels, cards inside cards, emoji icons."
+    ]
+  },
+  "screens": [
+    "In build order; screen 1 is what the main user sees after signing in.",
+    "1. `/` Storefront & Catalog: Shoppers and guests; answers \"What fresh groceries and pantry items can I order right now with flat ₹40 delivery?\"; category rail, curated daily essentials grid, search & filter bar, item cards with Add-to-Cart steppers, floating AI assistant button; opens product quick-view modal; main action 'View Cart'.",
+    "2. `/cart` Checkout & Payment: Shoppers; answers \"What is my order subtotal, flat ₹40 delivery fee, delivery address, and Razorpay payment confirmation?\"; delivery address form, itemized breakdown with delivery fee tag, prepaid-only badge, Razorpay payment trigger; opens order confirmation modal; main action 'Pay with Razorpay'.",
+    "3. `/orders` Order Tracking: Shoppers; answers \"Where is my grocery order and when will it reach my doorstep?\"; live status tracker (Placed → Packed → Out for Delivery → Delivered), item summary, rider details; main action 'Order Again'.",
+    "4. `/delivery` Rider Fleet Console: Approved delivery personnel; answers \"Which prepaid grocery orders are assigned to me for pickup and doorstep delivery?\"; assigned order list sorted by dispatch time, customer contact and address, one-click milestone updates ('Picked up', 'Delivered'); main action 'Mark as Delivered'.",
+    "5. `/admin` Dark Store Operations Console: Operations manager; answers \"What are today's sales, pending dispatch orders, inventory levels, and rider applications?\"; KPIs row (Revenue, Orders, Low Stock, Active Riders), Order dispatch table with assign dropdown, AI Sales Insights summary drawer, Product inventory table with Add Product modal, Rider approvals queue; main action 'Add Product'.",
+    "6. `/sign-in` & `/sign-up` Authentication: Shoppers, riders, and admins; answers \"How do I securely access my BigBasket Mini account?\"; split brand card with fresh grocery value prop and embedded Clerk sign-in/sign-up widget; main action 'Sign In'."
+  ],
+  "first_run": [
+    "Demo data: 18 grocery items across 6 categories (Fruits & Vegetables, Dairy & Bakery, Staples, Snacks, Masalas & Oils, Beverages) priced in ₹ with realistic units (₹42/kg Onions, ₹28/L Toned Milk, ₹110/kg Basmati Rice), 4 active orders with ₹40 delivery fee applied, 3 rider profiles (2 active, 1 pending approval), ₹18,450 daily revenue counter; realistic Indian sample addresses (Indiranagar, Koramangala Bengaluru).",
+    "The sign-in page shows the brand moment and the form, without sample credentials."
+  ],
+  "customer_pages": [
+    "The action customers come for is finding daily groceries quickly and checking out securely with flat ₹40 delivery via Razorpay.",
+    "Trust from checkable facts: Official prepaid digital transactions, 100% fresh guarantee, Bangalore fulfillment hub address, and instant order tracking with verified delivery partners."
+  ]
+}
