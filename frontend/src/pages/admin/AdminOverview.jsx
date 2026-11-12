@@ -43,7 +43,7 @@ const RevenueChart = ({ data }) => (
   </section>
 );
 
-const LowStock = ({ items }) => (
+const LowStock = ({ items, count }) => (
   <section className="bg-white border rounded-xl p-5" data-testid="low-stock-panel">
     <div className="flex items-center justify-between"><h2 className="font-semibold flex items-center gap-2"><AlertTriangle className="h-4 w-4 text-[#b45309]" /> Low stock</h2>
       <Link to="/admin/products" className="text-sm text-primary">Manage</Link></div>
@@ -52,6 +52,7 @@ const LowStock = ({ items }) => (
         <li key={p.id} className="py-2 flex justify-between text-sm"><span>{p.name} <span className="text-muted-foreground">· {p.unit}</span></span><span className="font-semibold tnum text-[#b45309]">{p.stock} left</span></li>
       ))}</ul>
     )}
+    {count > items.length && <p className="mt-2 text-xs text-muted-foreground">Showing {items.length} of {count}. Open Manage to see all.</p>}
   </section>
 );
 
@@ -72,7 +73,7 @@ export default function AdminOverview() {
       <Kpis s={stats} />
       <div className="grid xl:grid-cols-[1.4fr_1fr] gap-5">
         <RevenueChart data={stats.revenue_7d} />
-        <LowStock items={stats.low_stock} />
+        <LowStock items={stats.low_stock} count={stats.low_stock_count} />
       </div>
       <AiInsights />
     </div>

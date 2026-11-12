@@ -21,6 +21,7 @@ import AdminOrders from "@/pages/admin/AdminOrders";
 import AdminProducts from "@/pages/admin/AdminProducts";
 import AdminRiders from "@/pages/admin/AdminRiders";
 import AdminUsers from "@/pages/admin/AdminUsers";
+import AdminSettings from "@/pages/admin/AdminSettings";
 
 function App() {
   return (
@@ -45,6 +46,7 @@ function App() {
                     <Route path="products" element={<AdminProducts />} />
                     <Route path="partners" element={<AdminRiders />} />
                     <Route path="users" element={<AdminUsers />} />
+                    <Route path="settings" element={<AdminSettings />} />
                   </Route>
                 </Route>
                 <Route path="/sign-in/*" element={<SignInPage />} />

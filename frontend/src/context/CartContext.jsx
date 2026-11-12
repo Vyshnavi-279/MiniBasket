@@ -17,6 +17,16 @@ const load = () => {
 export function CartProvider({ children }) {
   const [items, setItems] = useState(load);
   const [open, setOpen] = useState(false);
+  const [deliveryFee, setDeliveryFee] = useState(null);
+
+  const refreshFee = useCallback(
+    () => publicApi.get("/settings").then((r) => setDeliveryFee(r.data.delivery_fee)).catch(() => {}),
+    []
+  );
+
+  useEffect(() => {
+    refreshFee();
+  }, [refreshFee]);
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(items));
@@ -55,8 +65,8 @@ export function CartProvider({ children }) {
   const value = useMemo(() => {
     const count = items.reduce((s, i) => s + i.qty, 0);
     const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
-    return { items, setQty, qtyOf, clear, count, subtotal, open, setOpen };
-  }, [items, setQty, qtyOf, clear, open]);
+    return { items, setQty, qtyOf, clear, count, subtotal, open, setOpen, deliveryFee, refreshFee };
+  }, [items, setQty, qtyOf, clear, open, deliveryFee, refreshFee]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

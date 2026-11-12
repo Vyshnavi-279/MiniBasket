@@ -10,7 +10,7 @@ import { PrepaidNotice, RazorpayBadge } from "@/components/store/PrepaidNotice";
 import { useCart } from "@/context/CartContext";
 import { useMe } from "@/context/MeContext";
 import { errMsg, publicApi, useApi } from "@/lib/api";
-import { DELIVERY_FEE, inr } from "@/lib/format";
+import { feeLabel, inr } from "@/lib/format";
 
 const loadRazorpay = () =>
   new Promise((resolve) => {
@@ -42,7 +42,7 @@ const EmptyCart = () => (
 );
 
 export default function Checkout() {
-  const { items, clear } = useCart();
+  const { items, clear, deliveryFee } = useCart();
   const { isSignedIn } = useAuth();
   const { me } = useMe();
   const api = useApi();
@@ -60,7 +60,7 @@ export default function Checkout() {
 
   const valid = lines.filter((l) => !l.unavailable);
   const subtotal = valid.reduce((s, l) => s + l.price * l.qty, 0);
-  const total = subtotal + DELIVERY_FEE;
+  const total = subtotal + (deliveryFee ?? 0);
   const blocked = lines.some((l) => l.unavailable || l.qty > l.stock);
 
   const pay = async () => {
@@ -82,9 +82,13 @@ export default function Checkout() {
         theme: { color: "#2e7d32" },
         handler: async (resp) => {
           try {
-            await api.post(`/orders/${data.order_id}/verify`, resp);
-            clear();
-            toast.success("Payment successful — your order is placed!");
+            const { data: result } = await api.post(`/orders/${data.order_id}/verify`, resp);
+            if (result.status === "cancelled") {
+              toast.error("Payment received, but an item went out of stock. The order was cancelled and a full refund is due.");
+            } else {
+              clear();
+              toast.success("Payment successful — your order is placed!");
+            }
             navigate(`/orders/${data.order_id}`);
           } catch (e) {
             toast.error(errMsg(e));
@@ -93,9 +97,17 @@ export default function Checkout() {
           }
         },
         modal: {
-          ondismiss: () => {
+          ondismiss: async () => {
             setPaying(false);
-            api.post(`/orders/${data.order_id}/abandon`).catch(() => {});
+            try {
+              const { data: state } = await api.post(`/orders/${data.order_id}/abandon`);
+              if (state.paid) {
+                if (state.status !== "cancelled") clear();
+                toast.success("Your payment went through — opening your order.");
+                navigate(`/orders/${data.order_id}`);
+                return;
+              }
+            } catch {}
             toast("Payment cancelled. Your basket is saved.");
           },
         },
@@ -141,7 +153,7 @@ export default function Checkout() {
         <aside className="bg-white border rounded-xl p-5 lg:sticky lg:top-24 space-y-3" data-testid="bill-summary">
           <h2 className="font-semibold">Bill summary</h2>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Items total</span><span className="tnum" data-testid="checkout-subtotal">{inr(subtotal)}</span></div>
-          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Delivery charge (flat)</span><span className="tnum" data-testid="checkout-delivery-fee">{inr(DELIVERY_FEE)}</span></div>
+          <div className="flex justify-between text-sm"><span className="text-muted-foreground">Delivery charge</span><span className="tnum" data-testid="checkout-delivery-fee">{feeLabel(deliveryFee)}</span></div>
           <div className="border-t pt-3 flex justify-between font-semibold text-lg"><span>To pay</span><span className="tnum" data-testid="checkout-total">{inr(total)}</span></div>
           <PrepaidNotice />
           {isSignedIn ? (

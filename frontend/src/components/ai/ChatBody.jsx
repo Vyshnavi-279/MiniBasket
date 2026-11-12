@@ -1,12 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@clerk/react";
 import { Loader2, Send, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { publicApi, streamSSE, useApi } from "@/lib/api";
 import { RichText, extractIds } from "@/components/ai/RichText";
 import { AddToCart } from "@/components/store/AddToCart";
 import { inr } from "@/lib/format";
 
-const SUGGESTIONS = ["What do I need for paneer butter masala?", "Show me today's best deals", "How much is delivery and can I pay cash?"];
+const SUGGESTIONS = ["What do I need for paneer butter masala?", "Show me today's best deals", "Which payment methods can I use?"];
 
 const ProductChip = ({ p }) => (
   <div className="flex items-center gap-2 border rounded-lg p-2 bg-white" data-testid={`ai-product-${p.id}`}>
@@ -40,6 +41,7 @@ export const ChatBody = () => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const [products, setProducts] = useState({});
   const [ready, setReady] = useState(false);
   const requested = useRef(new Set());
@@ -47,7 +49,7 @@ export const ChatBody = () => {
   const inputRef = useRef(null);
 
   useEffect(() => {
-    api.get("/ai/chat/history").then((r) => setMessages(r.data)).catch(() => {}).finally(() => {
+    api.get("/ai/chat/history").then((r) => setMessages(r.data)).catch(() => toast.error("Couldn't load your earlier chat.")).finally(() => {
       setReady(true);
       inputRef.current?.focus();
     });
@@ -76,7 +78,7 @@ export const ChatBody = () => {
 
   const send = async (text) => {
     const msg = text.trim();
-    if (!msg || busy || !ready) return;
+    if (!msg || busy || !ready || clearing) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", content: msg }, { role: "assistant", content: "" }]);
     setBusy(true);
@@ -97,8 +99,15 @@ export const ChatBody = () => {
   };
 
   const clear = async () => {
-    await api.delete("/ai/chat/history").catch(() => {});
-    setMessages([]);
+    setClearing(true);
+    try {
+      await api.delete("/ai/chat/history");
+      setMessages([]);
+    } catch {
+      toast.error("Couldn't clear the chat. Please try again.");
+    } finally {
+      setClearing(false);
+    }
   };
 
   return (
@@ -121,7 +130,7 @@ export const ChatBody = () => {
         {messages.length > 0 && !busy && (
           <button type="button" onClick={clear} data-testid="ai-clear-button" aria-label="Clear chat" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><Trash2 className="h-4 w-4" /></button>
         )}
-        <input ref={inputRef} data-testid="ai-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} disabled={!ready}
+        <input ref={inputRef} data-testid="ai-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} disabled={!ready || clearing}
           placeholder="Ask about products, recipes, delivery…" className="flex-1 h-10 rounded-lg border border-input px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
         <button type="submit" data-testid="ai-chat-send-button" disabled={busy || !ready || !input.trim()} aria-label="Send"
           className="h-10 w-10 rounded-lg bg-primary text-white grid place-items-center disabled:opacity-50">

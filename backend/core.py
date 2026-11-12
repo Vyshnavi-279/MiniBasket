@@ -23,7 +23,7 @@ logger = logging.getLogger("minibasket")
 client = AsyncIOMotorClient(os.environ["MONGO_URL"])
 db = client[os.environ["DB_NAME"]]
 
-DELIVERY_FEE = 40
+DEFAULT_DELIVERY_FEE = 40
 
 # Role list is code. Highest first; keep `admin`.
 ROLES = ["admin", "delivery", "customer"]
@@ -70,6 +70,11 @@ async def ensure_indexes() -> None:
                 await db[collection].create_indexes([model])
             except Exception as exc:
                 logger.error("ensure_indexes(%s.%s): %s", collection, model.document["name"], exc)
+
+
+async def get_delivery_fee() -> int:
+    doc = await db.settings.find_one({"key": "store"}, {"_id": 0, "delivery_fee": 1})
+    return int(doc["delivery_fee"]) if doc and "delivery_fee" in doc else DEFAULT_DELIVERY_FEE
 
 
 def now_iso() -> str:

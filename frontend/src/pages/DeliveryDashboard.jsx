@@ -60,6 +60,11 @@ export default function DeliveryDashboard() {
     return () => clearInterval(timer);
   }, [load]);
 
+  const manualRefresh = () => {
+    api.get("/delivery/orders").then((r) => { setOrders(r.data); toast.success("Deliveries updated"); })
+      .catch(() => toast.error("Couldn't refresh. Showing your last loaded deliveries."));
+  };
+
   const update = async (id, status) => {
     try {
       const { data } = await api.post(`/delivery/orders/${id}/status`, { status });
@@ -81,7 +86,7 @@ export default function DeliveryDashboard() {
     <div data-testid="delivery-dashboard" className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">My deliveries</h1>
-        <Button variant="outline" size="sm" onClick={load} data-testid="delivery-refresh-button"><RefreshCw className="h-4 w-4 mr-1.5" /> Refresh</Button>
+        <Button variant="outline" size="sm" onClick={manualRefresh} data-testid="delivery-refresh-button"><RefreshCw className="h-4 w-4 mr-1.5" /> Refresh</Button>
       </div>
       <div className="mt-5 grid grid-cols-3 border rounded-xl bg-white divide-x">
         {[["To deliver", active.length, "delivery-stat-active"], ["Delivered today", done.filter((o) => o.status === "delivered" && isToday(o.updated_at)).length, "delivery-stat-today"], ["All delivered", done.filter((o) => o.status === "delivered").length, "delivery-stat-total"]].map(([l, v, t]) => (

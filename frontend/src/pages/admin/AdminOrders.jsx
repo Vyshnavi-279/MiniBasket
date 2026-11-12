@@ -81,7 +81,7 @@ export default function AdminOrders() {
       const { data } = action === "assign"
         ? await api.post(`/admin/orders/${order.id}/assign`, { delivery_user_id: riderId })
         : await api.post(`/admin/orders/${order.id}/status`, { status: action });
-      setOrders((list) => list.map((o) => (o.id === order.id ? data : o)));
+      setOrders((list) => (Array.isArray(list) ? list.map((o) => (o.id === order.id ? data : o)) : list));
       toast.success(action === "assign" ? "Rider assigned" : `Order ${STATUS[action].label.toLowerCase()}`);
     } catch (e) {
       toast.error(errMsg(e));

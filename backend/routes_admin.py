@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
 
-from core import IN_ENV, RANK, ROLES, db, effective_role, new_id, now_iso, require_role
+from core import IN_ENV, RANK, ROLES, db, effective_role, get_delivery_fee, new_id, now_iso, require_role
 from routes_orders import release_expired_reservations
 from seed_data import CATEGORY_NAMES, CATEGORY_SLUGS, discount_pct
 
@@ -45,6 +45,7 @@ async def compute_stats() -> dict:
     ]).to_list(5)
     return {
         "revenue": revenue, "orders": orders, "avg_order_value": round(revenue / orders) if orders else 0,
+        "delivery_fee_per_order": await get_delivery_fee(),
         "orders_today": await db.orders.count_documents({**PAID, "created_at": {"$gte": _utc_iso(today_start)}}),
         "pending_dispatch": sc.get("placed", 0) + sc.get("packed", 0),
         "in_transit": sc.get("assigned", 0) + sc.get("out_for_delivery", 0),
@@ -56,6 +57,17 @@ async def compute_stats() -> dict:
         "revenue_7d": [{"date": d, "revenue": by_day.get(d, {}).get("revenue", 0), "orders": by_day.get(d, {}).get("orders", 0)} for d in days],
         "top_products": [{"name": t["_id"], "qty": t["qty"], "revenue": t["revenue"]} for t in top],
     }
+
+
+class SettingsIn(BaseModel):
+    delivery_fee: int = Field(ge=0, le=1000)
+
+
+@router.put("/admin/settings")
+async def update_settings(body: SettingsIn, admin: dict = Depends(ADMIN)):
+    await db.settings.update_one({"key": "store"}, {"$set": {"delivery_fee": body.delivery_fee, "updated_at": now_iso(),
+                                                          "updated_by": admin["user_id"]}}, upsert=True)
+    return {"delivery_fee": body.delivery_fee}
 
 
 @router.get("/admin/stats")
@@ -244,8 +256,12 @@ async def approve_application(app_id: str, admin: dict = Depends(ADMIN)):
         raise HTTPException(status_code=409, detail="Admins cannot be made delivery partners.")
     app = await _claim_application(app_id, {"status": "approved"})
     profile = {k: app[k] for k in ("full_name", "phone", "vehicle_type", "vehicle_number", "area")}
-    await db.users.update_one({"user_id": app["user_id"], "role": {"$ne": "admin"}},
-                              {"$set": {"role": "delivery", "rider_profile": profile}})
+    try:
+        await db.users.update_one({"user_id": app["user_id"], "role": {"$ne": "admin"}},
+                                  {"$set": {"role": "delivery", "rider_profile": profile}})
+    except Exception:
+        await db.delivery_applications.update_one({"id": app_id}, {"$set": {"status": "pending", "reviewed_at": None}})
+        raise HTTPException(status_code=500, detail="Could not update the applicant's role. Please try again.")
     return {"ok": True}
 
 
@@ -291,11 +307,11 @@ async def set_role(user_id: str, body: RoleIn, admin: dict = Depends(ADMIN)):
     target = await db.users.find_one({"user_id": user_id, **IN_ENV}, {"_id": 0})
     if target is None:
         raise HTTPException(status_code=404, detail="Not found")
-    if (effective_role(target.get("role")) == "admin" and body.role != "admin"
-            and await db.users.count_documents({"role": "admin", **IN_ENV}) <= 1):
+    demoting = effective_role(target.get("role")) == "admin" and body.role != "admin"
+    if demoting and await db.users.count_documents({"role": "admin", **IN_ENV}) <= 1:
         raise HTTPException(status_code=409, detail="Keep at least one admin")
     await db.users.update_one({"user_id": user_id}, {"$set": {"role": body.role}})
-    if await db.users.count_documents({"role": "admin", **IN_ENV}) == 0:  # lost a concurrent demotion race
+    if demoting and await db.users.count_documents({"role": "admin", **IN_ENV}) == 0:  # lost a concurrent demotion race
         await db.users.update_one({"user_id": user_id}, {"$set": {"role": "admin"}})
         raise HTTPException(status_code=409, detail="Keep at least one admin")
     return {"user_id": user_id, "role": body.role}

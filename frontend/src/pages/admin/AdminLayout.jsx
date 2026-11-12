@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { Bike, Boxes, ClipboardList, LayoutDashboard, Users } from "lucide-react";
+import { Bike, Boxes, ClipboardList, LayoutDashboard, Settings, Users } from "lucide-react";
 
 const LINKS = [
   { to: "/admin", end: true, label: "Overview", icon: LayoutDashboard, id: "overview" },
@@ -7,6 +7,7 @@ const LINKS = [
   { to: "/admin/products", label: "Products", icon: Boxes, id: "products" },
   { to: "/admin/partners", label: "Delivery partners", icon: Bike, id: "partners" },
   { to: "/admin/users", label: "Users & roles", icon: Users, id: "users" },
+  { to: "/admin/settings", label: "Settings", icon: Settings, id: "settings" },
 ];
 
 export default function AdminLayout() {

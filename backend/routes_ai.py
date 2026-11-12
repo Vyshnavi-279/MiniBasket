@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from core import DELIVERY_FEE, current_member, db, logger, new_id, now_iso, require_role
+from core import current_member, db, get_delivery_fee, logger, new_id, now_iso, require_role
 from routes_admin import compute_stats
 from seed_data import CATEGORY_NAMES
 
@@ -32,20 +32,22 @@ def _new_chat(session_id: str, system: str, history: list[dict]) -> LlmChat:
 
 async def _stream(chat: LlmChat, text: str, on_done=None):
     parts: list[str] = []
+    completed = False
     try:
         async for ev in chat.stream_message(UserMessage(text=text)):
             if isinstance(ev, TextDelta):
                 parts.append(ev.content)
                 yield _sse({"delta": ev.content})
             elif isinstance(ev, StreamDone):
+                completed = True
                 break
     except Exception:
         logger.exception("AI stream failed")
         yield _sse({"error": "The AI assistant is unavailable right now. Please try again in a moment."})
         return
     text = "".join(parts).strip()
-    if not text:
-        yield _sse({"error": "The assistant didn't return an answer. Please try again."})
+    if not text or not completed:
+        yield _sse({"error": "The assistant's reply was interrupted. Please try again."})
         return
     if on_done:
         await on_done(text)
@@ -61,7 +63,8 @@ async def _shop_system_prompt() -> str:
     return (
         "You are Basket Buddy, the friendly shopping assistant of MiniBasket, an online grocery store in India.\n"
         "Help customers find products, plan meals and recipes, build shopping lists and understand store policies.\n"
-        f"Store facts: every order has a flat Rs {DELIVERY_FEE} delivery charge. Payment is prepaid only through Razorpay "
+        f"Store facts: a delivery charge (currently Rs {await get_delivery_fee()} per order, set by the store) is added to the bill "
+        "at checkout; mention it only when the customer asks about delivery charges. Payment is prepaid only through Razorpay "
         "(UPI, cards, netbanking, wallets). Cash on delivery / pay on delivery is NOT available. Customers track orders "
         "under 'My Orders'. Delivery partners are verified and approved by the store admin.\n"
         "Rules:\n- Only recommend products from the catalog below and never invent products, prices, offers or delivery times.\n"
@@ -133,7 +136,8 @@ class InsightIn(BaseModel):
 async def ai_insights(body: InsightIn, admin: dict = Depends(require_role("admin"))):
     stats = await compute_stats()
     system = ("You are a retail analytics assistant for the admin of MiniBasket, an Indian online grocery store "
-              f"(flat ₹{DELIVERY_FEE} delivery fee, prepaid Razorpay payments only). Analyse the store data JSON you receive. "
+              f"(delivery charge per order set by the admin: ₹{await get_delivery_fee()}; prepaid Razorpay payments only). "
+              "Analyse the store data JSON you receive. "
               "Give 4-6 crisp, actionable insights about sales, dispatch backlog, inventory and delivery partners, "
               "using '-' bullets and ₹ amounts. Base every statement strictly on the data; if data is sparse say so and "
               "suggest what to do next. Keep it under 180 words. No tables, no headings.")

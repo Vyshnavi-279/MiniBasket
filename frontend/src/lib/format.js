@@ -1,6 +1,6 @@
-export const DELIVERY_FEE = 40;
-
 export const inr = (n) => `₹${Number(n || 0).toLocaleString("en-IN")}`;
+
+export const feeLabel = (fee) => (fee === null || fee === undefined ? "…" : fee === 0 ? "Free" : inr(fee));
 
 export const fmtDate = (iso) =>
   iso

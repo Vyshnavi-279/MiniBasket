@@ -9,10 +9,10 @@ export const Footer = () => (
           <ShoppingBasket className="h-5 w-5 text-primary" /> MiniBasket
         </div>
         <p className="mt-3 text-muted-foreground max-w-sm">
-          Daily groceries, fresh fruits and household essentials delivered to your door for a flat ₹40.
+          Daily groceries, fresh fruits and household essentials delivered to your door.
         </p>
         <ul className="mt-4 space-y-2 text-muted-foreground">
-          <li className="flex items-center gap-2"><Truck className="h-4 w-4 text-primary" /> Flat ₹40 delivery on every order</li>
+          <li className="flex items-center gap-2"><Truck className="h-4 w-4 text-primary" /> Doorstep delivery with live order tracking</li>
           <li className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-primary" /> Prepaid only via Razorpay — no cash on delivery</li>
           <li className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Verified, admin-approved delivery partners</li>
         </ul>

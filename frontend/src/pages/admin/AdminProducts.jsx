@@ -18,7 +18,7 @@ export default function AdminProducts() {
   const [dialog, setDialog] = useState({ open: false, product: null });
 
   const load = useCallback(() => {
-    api.get("/admin/products").then((r) => setProducts(r.data)).catch(() => setProducts([]));
+    api.get("/admin/products").then((r) => setProducts(r.data)).catch(() => setProducts("error"));
   }, [api]);
 
   useEffect(() => {
@@ -45,11 +45,11 @@ export default function AdminProducts() {
     }
   };
 
-  const list = (products || []).filter((p) => (cat === "all" || p.category === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
+  const list = (Array.isArray(products) ? products : []).filter((p) => (cat === "all" || p.category === cat) && p.name.toLowerCase().includes(q.toLowerCase()));
 
   return (
     <div data-testid="admin-products">
-      <AdminHeader title="Products" subtitle={`${products?.length ?? 0} products in catalog`}>
+      <AdminHeader title="Products" subtitle={Array.isArray(products) ? `${products.length} products in catalog` : ""}>
         <Button data-testid="add-product-button" onClick={() => setDialog({ open: true, product: null })}><Plus className="h-4 w-4 mr-1.5" /> Add product</Button>
       </AdminHeader>
       <div className="flex flex-wrap gap-2 mb-4">
@@ -70,6 +70,7 @@ export default function AdminProducts() {
           </TableHeader>
           <TableBody>
             {products === null ? <TableRow><TableCell colSpan={7} className="text-center py-10 text-muted-foreground">Loading…</TableCell></TableRow> :
+              products === "error" ? <TableRow><TableCell colSpan={7} className="text-center py-10" data-testid="admin-products-error">Couldn't load products. <button className="text-primary underline" onClick={() => { setProducts(null); load(); }}>Try again</button></TableCell></TableRow> :
               list.map((p) => (
                 <TableRow key={p.id} data-testid={`admin-product-row-${p.id}`}>
                   <TableCell><div className="flex items-center gap-3"><img src={p.image} alt="" className="h-10 w-10 rounded object-cover bg-muted" /><div><p className="text-sm font-medium">{p.name}</p><p className="text-xs text-muted-foreground">{p.unit}</p></div></div></TableCell>

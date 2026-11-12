@@ -4,7 +4,7 @@ import { ChevronRight, ShieldCheck, Truck } from "lucide-react";
 import { AddToCart } from "@/components/store/AddToCart";
 import { PrepaidNotice } from "@/components/store/PrepaidNotice";
 import { ProductRail } from "@/components/store/ProductRail";
-import { PageLoader } from "@/components/RoleGate";
+import { PageLoader, ErrorState } from "@/components/RoleGate";
 import { publicApi } from "@/lib/api";
 import { inr } from "@/lib/format";
 import { imgFallback } from "@/components/store/ProductCard";
@@ -14,6 +14,7 @@ export default function ProductDetail() {
   const [product, setProduct] = useState(null);
   const [related, setRelated] = useState(null);
   const [missing, setMissing] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -25,10 +26,11 @@ export default function ProductDetail() {
       setProduct(r.data);
       publicApi.get("/products", { params: { category: r.data.category, limit: 12 } })
         .then((rr) => active && setRelated(rr.data.filter((p) => p.id !== id))).catch(() => {});
-    }).catch(() => active && setMissing(true));
+    }).catch((e) => active && setMissing(e?.response?.status === 404 ? "missing" : "error"));
     return () => { active = false; };
-  }, [id]);
+  }, [id, reload]);
 
+  if (missing === "error") return <ErrorState onRetry={() => setReload((n) => n + 1)} text="We couldn't load this product." />;
   if (missing) {
     return <div data-testid="product-not-found" className="text-center py-24"><p className="font-medium">This product is not available.</p><Link to="/shop" className="text-primary text-sm">Back to shop</Link></div>;
   }
@@ -64,7 +66,7 @@ export default function ProductDetail() {
             </p>
             <div className="mt-6 max-w-xs"><AddToCart product={product} testid="product-detail" /></div>
             <div className="mt-8 grid gap-3 max-w-md">
-              <div className="flex items-center gap-3 text-sm"><Truck className="h-4 w-4 text-primary" /> Flat ₹40 delivery charge on your order</div>
+              <div className="flex items-center gap-3 text-sm"><Truck className="h-4 w-4 text-primary" /> Doorstep delivery with live order tracking</div>
               <div className="flex items-center gap-3 text-sm"><ShieldCheck className="h-4 w-4 text-primary" /> Delivered by a verified MiniBasket partner</div>
               <PrepaidNotice compact />
             </div>

@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, Bike, CreditCard, MapPin, Phone } from "lucide-react";
 import { OrderTimeline, StatusBadge } from "@/components/orders/OrderStatus";
-import { PageLoader } from "@/components/RoleGate";
+import { PageLoader, ErrorState } from "@/components/RoleGate";
 import { useApi } from "@/lib/api";
-import { fmtDate, inr } from "@/lib/format";
+import { feeLabel, fmtDate, inr } from "@/lib/format";
 
 export const OrderItems = ({ order }) => (
   <div className="divide-y">
@@ -21,7 +21,7 @@ export const OrderItems = ({ order }) => (
 export const OrderBill = ({ order }) => (
   <div className="space-y-1.5 text-sm">
     <div className="flex justify-between"><span className="text-muted-foreground">Items total</span><span className="tnum">{inr(order.subtotal)}</span></div>
-    <div className="flex justify-between"><span className="text-muted-foreground">Delivery charge</span><span className="tnum">{inr(order.delivery_fee)}</span></div>
+    <div className="flex justify-between"><span className="text-muted-foreground">Delivery charge</span><span className="tnum">{feeLabel(order.delivery_fee)}</span></div>
     <div className="flex justify-between font-semibold text-base pt-1.5 border-t"><span>Total paid</span><span className="tnum" data-testid="order-total">{inr(order.total)}</span></div>
   </div>
 );
@@ -38,19 +38,24 @@ export default function OrderDetail() {
   const api = useApi();
   const [order, setOrder] = useState(null);
   const [missing, setMissing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
-    const load = () => api.get(`/orders/${id}`).then((r) => active && setOrder(r.data)).catch((e) => {
-      if (active && e?.response?.status === 404) setMissing(true);
+    const load = () => api.get(`/orders/${id}`).then((r) => {
+      if (active) { setOrder(r.data); setFailed(false); }
+    }).catch((e) => {
+      if (!active) return;
+      if (e?.response?.status === 404) setMissing(true); else setFailed(true);
     });
     load();
     const timer = setInterval(load, 30000);
     return () => { active = false; clearInterval(timer); };
-  }, [api, id]);
+  }, [api, id, reload]);
 
   if (missing) return <div data-testid="order-not-found" className="text-center py-24"><p className="font-medium">Order not found.</p><Link to="/orders" className="text-primary text-sm">Back to my orders</Link></div>;
-  if (!order) return <PageLoader />;
+  if (!order) return failed ? <ErrorState onRetry={() => { setFailed(false); setReload((n) => n + 1); }} text="We couldn't load this order." /> : <PageLoader />;
   const rider = order.delivery_partner;
 
   return (

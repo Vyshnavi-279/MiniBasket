@@ -8,9 +8,9 @@ const BrandPanel = () => (
     <div className="absolute inset-0 bg-[#1b5e20]/85" />
     <Link to="/" className="relative flex items-center gap-2 font-bold text-xl"><ShoppingBasket className="h-6 w-6" /> MiniBasket</Link>
     <div className="relative">
-      <h2 className="text-4xl font-bold tracking-tight leading-tight">Fresh groceries,<br />one flat ₹40 delivery.</h2>
+      <h2 className="text-4xl font-bold tracking-tight leading-tight">Fresh groceries,<br />delivered to your door.</h2>
       <ul className="mt-6 space-y-3 text-white/90">
-        <li className="flex items-center gap-3"><Truck className="h-5 w-5" /> Flat ₹40 delivery charge on every order</li>
+        <li className="flex items-center gap-3"><Truck className="h-5 w-5" /> Doorstep delivery with live order tracking</li>
         <li className="flex items-center gap-3"><CreditCard className="h-5 w-5" /> Secure prepaid payments via Razorpay</li>
         <li className="flex items-center gap-3"><BadgeCheck className="h-5 w-5" /> Admin-verified delivery partners</li>
       </ul>

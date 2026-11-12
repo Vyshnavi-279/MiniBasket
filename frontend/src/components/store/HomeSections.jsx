@@ -11,7 +11,7 @@ export const Hero = () => (
           Your daily basket, delivered fresh.
         </h1>
         <p className="mt-4 text-base md:text-lg text-white/85 max-w-md">
-          46+ everyday items across 8 aisles. One flat ₹40 delivery charge. Secure prepaid checkout with Razorpay.
+          Fresh fruits, vegetables, staples and household essentials, delivered to your door. Secure prepaid checkout with Razorpay.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Button asChild size="lg" className="bg-white text-[#1b5e20] hover:bg-white/90 h-12 px-6" data-testid="hero-shop-now-button">
@@ -25,9 +25,9 @@ export const Hero = () => (
       <div className="relative rounded-2xl overflow-hidden min-h-[260px] lg:min-h-[440px]">
         <img src="/hero.jpg" alt="Fresh vegetables and fruits in baskets" className="absolute inset-0 h-full w-full object-cover" />
         <div className="absolute bottom-4 left-4 right-4 sm:right-auto rounded-xl bg-white/95 px-4 py-3 shadow-md">
-          <p className="text-xs text-muted-foreground">Delivery charge</p>
-          <p className="text-2xl font-bold text-primary tnum">Flat ₹40</p>
-          <p className="text-xs text-muted-foreground">on every order, any size</p>
+          <p className="text-xs text-muted-foreground">Everything for your kitchen</p>
+          <p className="text-2xl font-bold text-primary">8 aisles</p>
+          <p className="text-xs text-muted-foreground">Fruits, dairy, staples & household</p>
         </div>
       </div>
     </div>
@@ -35,7 +35,7 @@ export const Hero = () => (
 );
 
 const TRUST = [
-  { icon: Truck, title: "Flat ₹40 delivery", text: "Same price, every order" },
+  { icon: Truck, title: "Doorstep delivery", text: "Track your order at every step" },
   { icon: CreditCard, title: "100% prepaid", text: "UPI, cards & netbanking via Razorpay" },
   { icon: BadgeCheck, title: "Verified partners", text: "Every rider approved by our admin" },
   { icon: Sparkles, title: "AI shopping help", text: "Ask Basket Buddy anything" },

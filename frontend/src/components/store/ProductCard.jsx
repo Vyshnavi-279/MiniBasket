@@ -3,7 +3,8 @@ import { AddToCart } from "@/components/store/AddToCart";
 import { inr } from "@/lib/format";
 
 export const imgFallback = (e) => {
-  if (!e.currentTarget.src.endsWith("/placeholder.svg")) e.currentTarget.src = "/placeholder.svg";
+  const fallback = `${window.location.origin}/placeholder.svg`;
+  if (e.currentTarget.src !== fallback) e.currentTarget.src = fallback;
 };
 
 export const ProductCard = ({ product }) => (
