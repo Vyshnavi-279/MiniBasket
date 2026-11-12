@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,12 +11,13 @@ import { feeLabel } from "@/lib/format";
 
 export default function AdminSettings() {
   const api = useApi();
-  const { deliveryFee, refreshFee } = useCart();
+  const { deliveryFee, feeError, refreshFee } = useCart();
   const [fee, setFee] = useState("");
   const [busy, setBusy] = useState(false);
+  const touched = useRef(false);
 
   useEffect(() => {
-    if (deliveryFee !== null) setFee(String(deliveryFee));
+    if (deliveryFee !== null && !touched.current) setFee(String(deliveryFee));
   }, [deliveryFee]);
 
   const save = async (e) => {
@@ -26,8 +27,10 @@ export default function AdminSettings() {
     setBusy(true);
     try {
       await api.put("/admin/settings", { delivery_fee: n });
-      await refreshFee();
-      toast.success(n === 0 ? "Delivery is now free" : `Delivery charge set to ₹${n}`);
+      touched.current = false;
+      const ok = await refreshFee();
+      if (ok) toast.success(n === 0 ? "Delivery is now free" : `Delivery charge set to ₹${n}`);
+      else toast("Saved. Reload the page to confirm the current charge.");
     } catch (err) {
       toast.error(errMsg(err));
     } finally {
@@ -45,10 +48,11 @@ export default function AdminSettings() {
           Changes apply to new orders; existing orders keep the charge they were billed.
         </p>
         <p className="text-sm">Current charge: <span className="font-semibold tnum" data-testid="settings-current-fee">{feeLabel(deliveryFee)}</span></p>
+        {feeError && <p className="text-sm text-[#b71c1c]" data-testid="settings-fee-error">Couldn't load the current charge. <button type="button" className="underline" onClick={refreshFee}>Try again</button></p>}
         <div>
           <Label htmlFor="delivery-fee" className="text-xs text-muted-foreground">Delivery charge per order (₹)</Label>
           <Input id="delivery-fee" data-testid="settings-delivery-fee-input" type="number" min={0} max={1000} step={1}
-            value={fee} onChange={(e) => setFee(e.target.value)} className="mt-1.5 max-w-[180px]" />
+            value={fee} onChange={(e) => { touched.current = true; setFee(e.target.value); }} className="mt-1.5 max-w-[180px]" />
         </div>
         <Button type="submit" disabled={busy} data-testid="settings-save-button">
           {busy && <Loader2 className="h-4 w-4 animate-spin mr-2" />} Save delivery charge

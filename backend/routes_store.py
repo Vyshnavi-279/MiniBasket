@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from core import current_member, db, get_delivery_fee
-from routes_orders import release_expired_reservations
+from routes_orders import sweep_for_storefront
 from seed_data import CATEGORIES
 
 router = APIRouter(prefix="/api")
@@ -47,7 +47,7 @@ async def list_products(
     ids: Optional[str] = Query(None, max_length=3000),
     limit: int = Query(100, ge=1, le=200),
 ):
-    await release_expired_reservations()
+    await sweep_for_storefront()
     filt: dict = {"is_active": True}
     if category:
         filt["category"] = category
@@ -61,7 +61,7 @@ async def list_products(
 
 @router.get("/products/{product_id}")
 async def get_product(product_id: str):
-    await release_expired_reservations()
+    await sweep_for_storefront()
     product = await db.products.find_one({"id": product_id, "is_active": True}, PUBLIC_FIELDS)
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")

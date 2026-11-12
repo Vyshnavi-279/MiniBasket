@@ -128,7 +128,7 @@ export const ChatBody = () => {
       </div>
       <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="border-t p-3 flex items-center gap-2">
         {messages.length > 0 && !busy && (
-          <button type="button" onClick={clear} data-testid="ai-clear-button" aria-label="Clear chat" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><Trash2 className="h-4 w-4" /></button>
+          <button type="button" onClick={clear} disabled={clearing} data-testid="ai-clear-button" aria-label="Clear chat" className="p-2 rounded-md text-muted-foreground hover:bg-muted"><Trash2 className="h-4 w-4" /></button>
         )}
         <input ref={inputRef} data-testid="ai-chat-input" value={input} onChange={(e) => setInput(e.target.value)} maxLength={1000} disabled={!ready || clearing}
           placeholder="Ask about products, recipes, delivery…" className="flex-1 h-10 rounded-lg border border-input px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />

@@ -60,6 +60,9 @@ INDEXES: dict[str, list[IndexModel]] = {
     "chat_messages": [
         IndexModel([("user_id", ASCENDING), ("created_at", ASCENDING)], name="user_created"),
     ],
+    "settings": [
+        IndexModel([("key", ASCENDING)], name="key", unique=True),
+    ],
 }
 
 

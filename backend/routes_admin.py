@@ -1,10 +1,11 @@
 import re
+from contextlib import suppress
 from datetime import datetime, timedelta
 from typing import Literal, Optional
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StrictInt, model_validator
 
 from core import IN_ENV, RANK, ROLES, db, effective_role, get_delivery_fee, new_id, now_iso, require_role
 from routes_orders import release_expired_reservations
@@ -60,7 +61,7 @@ async def compute_stats() -> dict:
 
 
 class SettingsIn(BaseModel):
-    delivery_fee: int = Field(ge=0, le=1000)
+    delivery_fee: StrictInt = Field(ge=0, le=1000)
 
 
 @router.put("/admin/settings")
@@ -260,6 +261,8 @@ async def approve_application(app_id: str, admin: dict = Depends(ADMIN)):
         await db.users.update_one({"user_id": app["user_id"], "role": {"$ne": "admin"}},
                                   {"$set": {"role": "delivery", "rider_profile": profile}})
     except Exception:
+        with suppress(Exception):
+            await db.users.update_one({"user_id": app["user_id"], "role": "delivery"}, {"$set": {"role": "customer"}})
         await db.delivery_applications.update_one({"id": app_id}, {"$set": {"status": "pending", "reviewed_at": None}})
         raise HTTPException(status_code=500, detail="Could not update the applicant's role. Please try again.")
     return {"ok": True}

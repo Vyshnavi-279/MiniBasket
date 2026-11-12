@@ -49,9 +49,11 @@ export default function DeliveryDashboard() {
   const api = useApi();
   const [orders, setOrders] = useState(null);
   const [tab, setTab] = useState("active");
+  const [stale, setStale] = useState(false);
 
   const load = useCallback(() => {
-    api.get("/delivery/orders").then((r) => setOrders(r.data)).catch(() => setOrders((prev) => (Array.isArray(prev) ? prev : "error")));
+    api.get("/delivery/orders").then((r) => { setOrders(r.data); setStale(false); })
+      .catch(() => { setOrders((prev) => (Array.isArray(prev) ? prev : "error")); setStale(true); });
   }, [api]);
 
   useEffect(() => {
@@ -61,7 +63,7 @@ export default function DeliveryDashboard() {
   }, [load]);
 
   const manualRefresh = () => {
-    api.get("/delivery/orders").then((r) => { setOrders(r.data); toast.success("Deliveries updated"); })
+    api.get("/delivery/orders").then((r) => { setOrders(r.data); setStale(false); toast.success("Deliveries updated"); })
       .catch(() => toast.error("Couldn't refresh. Showing your last loaded deliveries."));
   };
 
@@ -88,6 +90,7 @@ export default function DeliveryDashboard() {
         <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">My deliveries</h1>
         <Button variant="outline" size="sm" onClick={manualRefresh} data-testid="delivery-refresh-button"><RefreshCw className="h-4 w-4 mr-1.5" /> Refresh</Button>
       </div>
+      {stale && <p className="mt-2 text-sm text-[#b45309]" data-testid="delivery-stale-note">Couldn't refresh automatically. Showing your last loaded deliveries.</p>}
       <div className="mt-5 grid grid-cols-3 border rounded-xl bg-white divide-x">
         {[["To deliver", active.length, "delivery-stat-active"], ["Delivered today", done.filter((o) => o.status === "delivered" && isToday(o.updated_at)).length, "delivery-stat-today"], ["All delivered", done.filter((o) => o.status === "delivered").length, "delivery-stat-total"]].map(([l, v, t]) => (
           <div key={l} className="p-4"><p className="text-xs text-muted-foreground">{l}</p><p className="text-2xl font-semibold tnum" data-testid={t}>{v}</p></div>

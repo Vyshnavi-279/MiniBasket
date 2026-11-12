@@ -18,15 +18,29 @@ export function CartProvider({ children }) {
   const [items, setItems] = useState(load);
   const [open, setOpen] = useState(false);
   const [deliveryFee, setDeliveryFee] = useState(null);
+  const [feeError, setFeeError] = useState(false);
 
-  const refreshFee = useCallback(
-    () => publicApi.get("/settings").then((r) => setDeliveryFee(r.data.delivery_fee)).catch(() => {}),
-    []
-  );
+  const refreshFee = useCallback(async () => {
+    try {
+      const r = await publicApi.get("/settings");
+      setDeliveryFee(r.data.delivery_fee);
+      setFeeError(false);
+      return true;
+    } catch {
+      setFeeError(true);
+      return false;
+    }
+  }, []);
 
   useEffect(() => {
     refreshFee();
   }, [refreshFee]);
+
+  useEffect(() => {
+    if (open) {
+      refreshFee();
+    }
+  }, [open, refreshFee]);
 
   useEffect(() => {
     localStorage.setItem(KEY, JSON.stringify(items));
@@ -65,8 +79,8 @@ export function CartProvider({ children }) {
   const value = useMemo(() => {
     const count = items.reduce((s, i) => s + i.qty, 0);
     const subtotal = items.reduce((s, i) => s + i.qty * i.price, 0);
-    return { items, setQty, qtyOf, clear, count, subtotal, open, setOpen, deliveryFee, refreshFee };
-  }, [items, setQty, qtyOf, clear, open, deliveryFee, refreshFee]);
+    return { items, setQty, qtyOf, clear, count, subtotal, open, setOpen, deliveryFee, feeError, refreshFee };
+  }, [items, setQty, qtyOf, clear, open, deliveryFee, feeError, refreshFee]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

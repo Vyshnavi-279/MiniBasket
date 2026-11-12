@@ -22,13 +22,13 @@ const loadRazorpay = () =>
     document.body.appendChild(s);
   });
 
-const useLiveLines = (items) => {
+const useLiveLines = (items, version) => {
   const [live, setLive] = useState(null);
   const ids = items.map((i) => i.id).join(",");
   useEffect(() => {
     if (!ids) return;
     publicApi.get("/products", { params: { ids } }).then((r) => setLive(Object.fromEntries(r.data.map((p) => [p.id, p])))).catch(() => setLive(null));
-  }, [ids]);
+  }, [ids, version]);
   return items.map((i) => (live ? (live[i.id] ? { ...i, ...live[i.id], qty: i.qty } : { ...i, unavailable: true }) : i));
 };
 
@@ -42,15 +42,20 @@ const EmptyCart = () => (
 );
 
 export default function Checkout() {
-  const { items, clear, deliveryFee } = useCart();
+  const { items, clear, deliveryFee, feeError, refreshFee } = useCart();
   const { isSignedIn } = useAuth();
   const { me } = useMe();
   const api = useApi();
   const navigate = useNavigate();
-  const lines = useLiveLines(items);
+  const [version, setVersion] = useState(0);
+  const lines = useLiveLines(items, version);
   const [addr, setAddr] = useState(EMPTY_ADDRESS);
   const [errors, setErrors] = useState({});
   const [paying, setPaying] = useState(false);
+
+  useEffect(() => {
+    refreshFee();
+  }, [refreshFee]);
 
   useEffect(() => {
     if (me?.default_address) setAddr((a) => (a.full_name ? a : { ...EMPTY_ADDRESS, ...me.default_address }));
@@ -68,13 +73,14 @@ export default function Checkout() {
     setErrors(v);
     if (Object.keys(v).length) return toast.error("Please complete your delivery address");
     if (blocked) return toast.error("Some items are unavailable or exceed stock. Please update your basket.");
+    if (deliveryFee === null) return toast.error("Your bill is still loading. Please try again in a moment.");
     setPaying(true);
     if (!(await loadRazorpay())) {
       setPaying(false);
       return toast.error("Could not load Razorpay. Please check your internet connection.");
     }
     try {
-      const { data } = await api.post("/orders/checkout", { items: valid.map((l) => ({ product_id: l.id, qty: l.qty })), address: addr });
+      const { data } = await api.post("/orders/checkout", { items: valid.map((l) => ({ product_id: l.id, qty: l.qty })), address: addr, expected_total: total });
       const rzp = new window.Razorpay({
         key: data.key_id, amount: data.amount, currency: data.currency, order_id: data.razorpay_order_id,
         name: "MiniBasket", description: `Order ${data.order_number}`,
@@ -98,7 +104,6 @@ export default function Checkout() {
         },
         modal: {
           ondismiss: async () => {
-            setPaying(false);
             try {
               const { data: state } = await api.post(`/orders/${data.order_id}/abandon`);
               if (state.paid) {
@@ -107,8 +112,12 @@ export default function Checkout() {
                 navigate(`/orders/${data.order_id}`);
                 return;
               }
-            } catch {}
-            toast("Payment cancelled. Your basket is saved.");
+              toast("Payment cancelled. Your basket is saved.");
+            } catch {
+              toast("Payment window closed. If money was deducted, check My orders before paying again.");
+            } finally {
+              setPaying(false);
+            }
           },
         },
         timeout: data.timeout_seconds,
@@ -117,6 +126,10 @@ export default function Checkout() {
       rzp.open();
     } catch (e) {
       toast.error(errMsg(e));
+      if (e?.response?.status === 409) {
+        await refreshFee();
+        setVersion((v) => v + 1);
+      }
       setPaying(false);
     }
   };
@@ -155,9 +168,14 @@ export default function Checkout() {
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Items total</span><span className="tnum" data-testid="checkout-subtotal">{inr(subtotal)}</span></div>
           <div className="flex justify-between text-sm"><span className="text-muted-foreground">Delivery charge</span><span className="tnum" data-testid="checkout-delivery-fee">{feeLabel(deliveryFee)}</span></div>
           <div className="border-t pt-3 flex justify-between font-semibold text-lg"><span>To pay</span><span className="tnum" data-testid="checkout-total">{inr(total)}</span></div>
+          {feeError && deliveryFee === null && (
+            <p className="text-sm text-[#b71c1c]" data-testid="checkout-fee-error">
+              Couldn't load the delivery charge. <button className="underline" onClick={refreshFee} data-testid="checkout-fee-retry">Try again</button>
+            </p>
+          )}
           <PrepaidNotice />
           {isSignedIn ? (
-            <Button data-testid="checkout-pay-button" className="w-full h-12 text-base" disabled={paying} onClick={pay}>
+            <Button data-testid="checkout-pay-button" className="w-full h-12 text-base" disabled={paying || deliveryFee === null} onClick={pay}>
               {paying ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Lock className="h-4 w-4 mr-2" />}
               Pay {inr(total)} with Razorpay
             </Button>

@@ -18,10 +18,13 @@ export const AiInsights = () => {
     setText("");
     setError("");
     try {
+      let finished = false;
       await streamSSE("/admin/ai/insights", { question: question.trim() }, await getToken(), (ev) => {
         if (ev.delta) setText((t) => t + ev.delta);
-        if (ev.error) setError(ev.error);
+        if (ev.error) { finished = true; setError(ev.error); }
+        if (ev.done) finished = true;
       });
+      if (!finished) setError("The insights were cut off. Please generate them again.");
     } catch (err) {
       setError(err.message);
     } finally {

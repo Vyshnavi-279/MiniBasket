@@ -39,15 +39,16 @@ export default function OrderDetail() {
   const [order, setOrder] = useState(null);
   const [missing, setMissing] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [stale, setStale] = useState(false);
   const [reload, setReload] = useState(0);
 
   useEffect(() => {
     let active = true;
     const load = () => api.get(`/orders/${id}`).then((r) => {
-      if (active) { setOrder(r.data); setFailed(false); }
+      if (active) { setOrder(r.data); setFailed(false); setStale(false); }
     }).catch((e) => {
       if (!active) return;
-      if (e?.response?.status === 404) setMissing(true); else setFailed(true);
+      if (e?.response?.status === 404) setMissing(true); else { setFailed(true); setStale(true); }
     });
     load();
     const timer = setInterval(load, 30000);
@@ -64,7 +65,7 @@ export default function OrderDetail() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight" data-testid="order-detail-number">Order #{order.order_number}</h1>
-          <p className="text-sm text-muted-foreground">Placed {fmtDate(order.created_at)} · updates automatically</p>
+          <p className="text-sm text-muted-foreground">Placed {fmtDate(order.created_at)} · {stale ? <span className="text-[#b45309]" data-testid="order-stale-note">couldn't refresh, showing last update</span> : "updates automatically"}</p>
         </div>
         <StatusBadge status={order.status} testid="order-detail-status" />
       </div>

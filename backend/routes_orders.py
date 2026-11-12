@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import os
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
@@ -35,6 +36,7 @@ class Address(BaseModel):
 class CheckoutIn(BaseModel):
     items: list[CartLine] = Field(min_length=1, max_length=50)
     address: Address
+    expected_total: Optional[int] = Field(None, ge=0)
 
 
 class VerifyIn(BaseModel):
@@ -131,12 +133,25 @@ async def reconcile(order: dict) -> bool:
     return bool(captured)
 
 
-async def release_expired_reservations() -> None:
+_last_sweep = 0.0
+
+
+async def release_expired_reservations(reconcile_first: bool = True, limit: int = 20) -> None:
     expired = await db.orders.find({"status": "pending_payment", "stock_reserved": True, "reserved_until": {"$lt": now_iso()}},
-                                   {"_id": 0}).limit(20).to_list(20)
+                                   {"_id": 0}).limit(limit).to_list(limit)
     for order in expired:
-        if not await reconcile(order):
+        # A hold released here is re-reserved (or refund-flagged) if Razorpay later reports the payment captured.
+        if not (reconcile_first and await reconcile(order)):
             await _drop_reservation(order["id"], "payment_expired")
+
+
+async def sweep_for_storefront() -> None:
+    """Cheap, throttled expiry for public catalogue reads: DB-only, at most once every 30 seconds per worker."""
+    global _last_sweep
+    if time.monotonic() - _last_sweep < 30:
+        return
+    _last_sweep = time.monotonic()
+    await release_expired_reservations(reconcile_first=False, limit=200)
 
 
 # ---------- Checkout ----------
@@ -164,13 +179,16 @@ async def checkout(body: CheckoutIn, member: dict = Depends(current_member)):
     key_id, secret = _razorpay_keys()
     await release_expired_reservations()
     items = await _price_cart(body.items)
+    subtotal = sum(i["line_total"] for i in items)
+    delivery_fee = await get_delivery_fee()
+    total = subtotal + delivery_fee
+    if body.expected_total is not None and body.expected_total != total:
+        raise HTTPException(status_code=409, detail="Your bill was updated because a price or the delivery charge changed. "
+                                                    "Please review the new total and pay again.")
     failed = await _reserve(items)
     if failed:
         p = await db.products.find_one({"id": failed["product_id"]}, {"_id": 0, "stock": 1})
         raise HTTPException(status_code=400, detail=f"Only {(p or {}).get('stock', 0)} left of {failed['name']}. Please reduce the quantity.")
-    subtotal = sum(i["line_total"] for i in items)
-    delivery_fee = await get_delivery_fee()
-    total = subtotal + delivery_fee
     order_id, number = new_id(), "MB" + new_id()[:10].upper()
     try:
         rz_order = await run_in_threadpool(razorpay.Client(auth=(key_id, secret)).order.create, {
@@ -208,6 +226,22 @@ async def _owned(order_id: str, member: dict) -> dict:
     return order
 
 
+async def _confirm_captured(order: dict, payment_id: str) -> None:
+    """Only treat an order as paid once Razorpay reports the funds captured for this exact order and amount."""
+    client = razorpay.Client(auth=_razorpay_keys())
+    try:
+        pay = await run_in_threadpool(client.payment.fetch, payment_id)
+        if pay.get("status") == "authorized":
+            pay = await run_in_threadpool(client.payment.capture, payment_id, pay["amount"], {"currency": "INR"})
+    except Exception:
+        logger.warning("Razorpay payment check failed for %s", order["id"])
+        raise HTTPException(status_code=502, detail="We couldn't confirm your payment yet. Please check My orders in a minute.")
+    if pay.get("order_id") != order["payment"]["razorpay_order_id"] or pay.get("amount") != order["total"] * 100:
+        raise HTTPException(status_code=400, detail="This payment does not match this order.")
+    if pay.get("status") != "captured":
+        raise HTTPException(status_code=409, detail="Your payment is still being confirmed. Please check My orders in a minute.")
+
+
 @router.post("/orders/{order_id}/verify")
 async def verify_payment(order_id: str, body: VerifyIn, member: dict = Depends(current_member)):
     _, secret = _razorpay_keys()
@@ -219,6 +253,7 @@ async def verify_payment(order_id: str, body: VerifyIn, member: dict = Depends(c
                             hashlib.sha256).hexdigest()
         if not hmac.compare_digest(expected, body.razorpay_signature):
             raise HTTPException(status_code=400, detail="Payment verification failed. If money was deducted, Razorpay will refund it.")
+        await _confirm_captured(order, body.razorpay_payment_id)
         await mark_paid(order, body.razorpay_payment_id)
     fresh = await db.orders.find_one({"id": order_id}, {"_id": 0, "status": 1})
     return {"ok": True, "status": fresh["status"]}
