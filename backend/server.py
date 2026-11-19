@@ -54,3 +54,6 @@ async def shutdown_db_client():
     with suppress(asyncio.CancelledError):
         await app.state.index_task
     client.close()
+
+from mb_ops_router import router as mb_ops_router
+app.include_router(mb_ops_router)
